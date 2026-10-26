@@ -7,24 +7,44 @@
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root {
-    --ink: #1c2b2d; --paper: #f5f6f3; --line: #d5d9d2;
+    /* Dua warna gradasi latar. Ganti sesuai warna logo. */
+    --warna-1: #968146;
+    --warna-2: #fff0ac;
+
+    --ink: #1c2b2d; --line: #d5d9d2;
     --ok: #1f7a4d; --warn: #a86a0c; --bad: #b3372f; --idle: #5b6b6e;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body {
-    margin: 0; padding: 16px; min-height: 100vh;
+    margin: 0; padding: 20px 16px 32px; min-height: 100vh;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: var(--paper); color: var(--ink);
-    display: flex; flex-direction: column; gap: 14px; max-width: 480px; margin-inline: auto;
+    color: var(--ink);
+    background: linear-gradient(160deg, var(--warna-1), var(--warna-2)) fixed;
   }
-  h1 { font-size: 1.25rem; margin: 0; }
-  #reader { width: 100%; border-radius: 10px; overflow: hidden; background: #000; min-height: 80px; }
+  main { max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; flex-direction: column; align-items: center; gap: 10px; color: #fff; text-align: center; }
+  .logo { background: #fff; border-radius: 16px; padding: 8px; }
+  .logo img { display: block; max-height: 72px; max-width: 200px; }
+  h1 { font-size: 1.35rem; margin: 0; }
+  h2 { font-size: 1rem; margin: 0; }
+
+  .kartu { background: #fff; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  label { font-size: .95rem; font-weight: 600; }
+  input[type=password] {
+    font: inherit; width: 100%; padding: 12px; margin-top: 6px; border-radius: 10px;
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+  }
   button {
     font: inherit; font-weight: 600; padding: 14px; border-radius: 10px; border: 0;
     background: var(--ink); color: #fff; width: 100%; cursor: pointer;
   }
+  button:disabled { opacity: .6; cursor: default; }
   button.sekunder { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 500; padding: 10px; }
-  button:focus-visible { outline: 3px solid #7aa7ff; outline-offset: 2px; }
+  button:focus-visible, input:focus-visible { outline: 3px solid #7aa7ff; outline-offset: 2px; }
+  #pesanPin { min-height: 1.3em; margin: 0; font-size: .95rem; color: var(--bad); }
+
+  #reader { width: 100%; border-radius: 10px; overflow: hidden; background: #000; min-height: 80px; }
   #hasil {
     border-radius: 10px; padding: 18px; background: #fff; border: 2px solid var(--line);
     min-height: 110px; display: flex; flex-direction: column; justify-content: center; gap: 4px;
@@ -37,48 +57,73 @@
   #riwayat { list-style: none; margin: 0; padding: 0; font-size: .95rem; }
   #riwayat li { padding: 8px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
   #riwayat .tag-ok { color: var(--ok); } #riwayat .tag-sudah { color: var(--warn); } #riwayat .tag-gagal { color: var(--bad); }
-  h2 { font-size: 1rem; margin: 6px 0 0; }
-  label { font-size: .95rem; font-weight: 600; }
-  input[type=password], input[type=text] {
-    font: inherit; width: 100%; padding: 12px; margin-top: 6px; border-radius: 10px;
-    border: 1px solid var(--line); background: #fff; color: var(--ink);
-  }
-  input:focus-visible { outline: 3px solid #7aa7ff; outline-offset: 2px; }
 </style>
 </head>
 <body>
-  <h1>Scan Absensi</h1>
+<main>
+  <header>
+    <!-- Unggah logo ke repository dengan nama logo.png. Jika file tidak ada, logo disembunyikan. -->
+    <div class="logo"><img id="logo" src="logo.png" alt="Logo" onerror="this.parentElement.hidden = true"></div>
+    <h1>Scan Absensi</h1>
+  </header>
 
-  <div>
-    <label for="inputPin">PIN absensi (cukup diisi sekali di HP ini)</label>
-    <input id="inputPin" type="password" autocomplete="off" placeholder="Ketik PIN, lalu tekan Mulai scan">
-  </div>
+  <!-- Layar 1: PIN (selalu tampil lebih dulu) -->
+  <section id="layarPin" class="kartu">
+    <form id="formPin" class="kartu" style="padding:0">
+      <div>
+        <label for="inputPin">Masukkan PIN absensi</label>
+        <input id="inputPin" type="password" autocomplete="off" required>
+      </div>
+      <p id="pesanPin" aria-live="polite"></p>
+      <button type="submit" id="btnMasuk">Masuk</button>
+    </form>
+  </section>
 
-  <div id="reader"></div>
-  <button id="btnMulai">Mulai scan</button>
+  <!-- Layar 2: Scanner (muncul setelah PIN benar) -->
+  <section id="layarScan" hidden style="display:flex; flex-direction:column; gap:14px">
+    <div id="reader"></div>
+    <button id="btnMulai">Mulai scan</button>
 
-  <div id="hasil" aria-live="polite">
-    <div class="besar">Siap</div>
-    <div class="kecil">Tekan "Mulai scan", lalu arahkan kamera ke QR di kartu.</div>
-  </div>
+    <div id="hasil" aria-live="polite">
+      <div class="besar">Siap</div>
+      <div class="kecil">Tekan "Mulai scan", lalu arahkan kamera ke QR di kartu.</div>
+    </div>
 
-  <h2>Scan sesi ini</h2>
-  <ul id="riwayat"></ul>
+    <div class="kartu">
+      <h2>Scan sesi ini</h2>
+      <ul id="riwayat"></ul>
+    </div>
 
+    <button class="sekunder" id="btnKeluar" style="background:#fff">Keluar (kunci kembali)</button>
+  </section>
+</main>
 
 <script>
   // ====== PENGATURAN ======
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwQG_A-Y8DtQVjaGqb6rTfCKRP8oLPcyy7lQC0CNmUcoByxqTF00AXXa2n3PBGcjt8h/exec'; // URL yang berakhiran /exec
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwQG_A-Y8DtQVjaGqb6rTfCKRP8oLPcyy7lQC0CNmUcoByxqTF00AXXa2n3PBGcjt8h/exec';
   // ========================
 
-  const hasil = document.getElementById('hasil');
-  const riwayat = document.getElementById('riwayat');
-  const btnMulai = document.getElementById('btnMulai');
-  let scanner = null;
+  const $ = (id) => document.getElementById(id);
+  const layarPin = $('layarPin'), layarScan = $('layarScan');
+  const formPin = $('formPin'), inputPin = $('inputPin'), btnMasuk = $('btnMasuk');
+  const hasil = $('hasil'), riwayat = $('riwayat'), btnMulai = $('btnMulai');
 
-  let pin = localStorage.getItem('pin_absensi') || '';
-  let sibuk = false;
-  let kodeTerakhir = '', waktuTerakhir = 0;
+  let pin = '';               // PIN hanya disimpan di memori halaman ini, hilang saat halaman ditutup/dimuat ulang
+  let scanner = null, kameraAktif = false;
+  let sibuk = false, kodeTerakhir = '', waktuTerakhir = 0;
+
+  // Hapus PIN yang mungkin tersimpan oleh versi lama halaman ini
+  try { localStorage.removeItem('pin_absensi'); } catch (e) {}
+
+  function kirim(isi) {
+    return fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // text/plain agar tidak kena preflight CORS
+      body: JSON.stringify(isi)
+    }).then((res) => res.json());
+  }
+
+  function pesanPin(teks) { $('pesanPin').textContent = teks || ''; }
 
   function tampil(kelas, besar, kecil) {
     hasil.className = kelas;
@@ -105,16 +150,44 @@
     riwayat.prepend(li);
   }
 
-  const inputPin = document.getElementById('inputPin');
-  inputPin.value = pin;
-  inputPin.addEventListener('input', () => {
-    pin = inputPin.value.trim();
-    localStorage.setItem('pin_absensi', pin);
+  // Jika ada error tak terduga, tampilkan di layar (bukan diam saja)
+  window.addEventListener('error', (e) => {
+    if (!layarScan.hidden) tampil('gagal', 'Ada error di halaman', e.message);
+    else pesanPin('Ada error di halaman: ' + e.message);
   });
 
-  // Jika ada error tak terduga, tampilkan di layar (bukan diam saja)
-  window.addEventListener('error', (e) => tampil('gagal', 'Ada error di halaman', e.message));
+  // ---- Layar PIN ----
+  formPin.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const coba = inputPin.value.trim();
+    if (!coba) { pesanPin('PIN belum diisi.'); return; }
+    btnMasuk.disabled = true; pesanPin('Memeriksa...');
+    try {
+      const d = await kirim({ aksi: 'cek_pin', pin: coba });
+      if (d.status === 'pin_ok') {
+        pin = coba; inputPin.value = ''; pesanPin('');
+        layarPin.hidden = true; layarScan.hidden = false;
+        tampil('', 'Siap', 'Tekan "Mulai scan", lalu arahkan kamera ke QR di kartu.');
+      } else if (d.status === 'salah_pin') {
+        pesanPin('PIN salah. Coba lagi.'); inputPin.select();
+      } else {
+        pesanPin('Script Google belum diperbarui. Deploy versi baru dulu, lalu muat ulang halaman ini.');
+      }
+    } catch (err) {
+      pesanPin('Gagal terhubung. Cek internet atau URL web app, lalu coba lagi.');
+    }
+    btnMasuk.disabled = false;
+  });
 
+  async function kunciLagi(pesan) {
+    if (kameraAktif && scanner) { try { await scanner.stop(); } catch (e) {} kameraAktif = false; }
+    pin = ''; riwayat.innerHTML = ''; btnMulai.hidden = false;
+    layarScan.hidden = true; layarPin.hidden = false;
+    pesanPin(pesan || ''); inputPin.focus();
+  }
+  $('btnKeluar').addEventListener('click', () => kunciLagi(''));
+
+  // ---- Layar Scanner ----
   async function onScan(teks) {
     const kode = teks.trim().toUpperCase();
     const sekarang = Date.now();
@@ -124,12 +197,7 @@
     tampil('', 'Memproses...', kode);
 
     try {
-      const res = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // text/plain agar tidak kena preflight CORS
-        body: JSON.stringify({ kode: kode, pin: pin })
-      });
-      const d = await res.json();
+      const d = await kirim({ kode: kode, pin: pin });
 
       if (d.status === 'ok') {
         tampil('ok', 'Hadir: ' + d.nama, kode + ' | total hadir: ' + d.jumlah);
@@ -142,7 +210,7 @@
         tambahRiwayat('gagal', kode, 'tidak terdaftar'); bunyi('gagal');
       } else if (d.status === 'salah_pin') {
         kodeTerakhir = '';
-        tampil('gagal', 'PIN salah', 'Perbaiki PIN di kolom atas, lalu scan ulang.'); bunyi('gagal');
+        await kunciLagi('PIN tidak berlaku lagi. Masukkan PIN yang baru.'); bunyi('gagal');
       } else {
         tampil('gagal', 'Terjadi kesalahan', d.pesan || ''); bunyi('gagal');
       }
@@ -154,10 +222,6 @@
   }
 
   btnMulai.addEventListener('click', async () => {
-    if (!pin) {
-      tampil('gagal', 'PIN belum diisi', 'Ketik PIN di kolom atas, lalu tekan Mulai scan lagi.');
-      inputPin.focus(); return;
-    }
     if (typeof Html5Qrcode === 'undefined') {
       tampil('gagal', 'Pustaka scanner gagal dimuat', 'Cek internet, matikan pemblokir iklan, lalu muat ulang halaman.'); return;
     }
@@ -165,13 +229,12 @@
     try {
       await scanner.start({ facingMode: 'environment' },
         { fps: 10, qrbox: { width: 240, height: 240 } }, onScan, () => {});
-      btnMulai.style.display = 'none';
+      kameraAktif = true; btnMulai.hidden = true;
       tampil('', 'Kamera aktif', 'Arahkan ke QR di kartu karyawan.');
     } catch (err) {
       tampil('gagal', 'Kamera tidak bisa dibuka', 'Izinkan akses kamera untuk situs ini di pengaturan Chrome.');
     }
   });
-
 </script>
 </body>
 </html>
