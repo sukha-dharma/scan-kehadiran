@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Scan Absensi</title>
-<script src="https://script.google.com/macros/s/AKfycbwQG_A-Y8DtQVjaGqb6rTfCKRP8oLPcyy7lQC0CNmUcoByxqTF00AXXa2n3PBGcjt8h/exec"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root {
     --ink: #1c2b2d; --paper: #f5f6f3; --line: #d5d9d2;
@@ -38,10 +38,21 @@
   #riwayat li { padding: 8px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
   #riwayat .tag-ok { color: var(--ok); } #riwayat .tag-sudah { color: var(--warn); } #riwayat .tag-gagal { color: var(--bad); }
   h2 { font-size: 1rem; margin: 6px 0 0; }
+  label { font-size: .95rem; font-weight: 600; }
+  input[type=password], input[type=text] {
+    font: inherit; width: 100%; padding: 12px; margin-top: 6px; border-radius: 10px;
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+  }
+  input:focus-visible { outline: 3px solid #7aa7ff; outline-offset: 2px; }
 </style>
 </head>
 <body>
   <h1>Scan Absensi</h1>
+
+  <div>
+    <label for="inputPin">PIN absensi (cukup diisi sekali di HP ini)</label>
+    <input id="inputPin" type="password" autocomplete="off" placeholder="Ketik PIN, lalu tekan Mulai scan">
+  </div>
 
   <div id="reader"></div>
   <button id="btnMulai">Mulai scan</button>
@@ -54,17 +65,16 @@
   <h2>Scan sesi ini</h2>
   <ul id="riwayat"></ul>
 
-  <button class="sekunder" id="btnPin">Ganti PIN</button>
 
 <script>
   // ====== PENGATURAN ======
-  const SCRIPT_URL = 'GANTI_DENGAN_URL_WEB_APP_ANDA'; // URL yang berakhiran /exec
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwQG_A-Y8DtQVjaGqb6rTfCKRP8oLPcyy7lQC0CNmUcoByxqTF00AXXa2n3PBGcjt8h/exec'; // URL yang berakhiran /exec
   // ========================
 
   const hasil = document.getElementById('hasil');
   const riwayat = document.getElementById('riwayat');
   const btnMulai = document.getElementById('btnMulai');
-  const scanner = new Html5Qrcode('reader');
+  let scanner = null;
 
   let pin = localStorage.getItem('pin_absensi') || '';
   let sibuk = false;
@@ -95,10 +105,15 @@
     riwayat.prepend(li);
   }
 
-  function mintaPin() {
-    const p = prompt('Masukkan PIN absensi:');
-    if (p) { pin = p.trim(); localStorage.setItem('pin_absensi', pin); }
-  }
+  const inputPin = document.getElementById('inputPin');
+  inputPin.value = pin;
+  inputPin.addEventListener('input', () => {
+    pin = inputPin.value.trim();
+    localStorage.setItem('pin_absensi', pin);
+  });
+
+  // Jika ada error tak terduga, tampilkan di layar (bukan diam saja)
+  window.addEventListener('error', (e) => tampil('gagal', 'Ada error di halaman', e.message));
 
   async function onScan(teks) {
     const kode = teks.trim().toUpperCase();
@@ -126,8 +141,8 @@
         tampil('gagal', 'Kode tidak terdaftar', kode);
         tambahRiwayat('gagal', kode, 'tidak terdaftar'); bunyi('gagal');
       } else if (d.status === 'salah_pin') {
-        localStorage.removeItem('pin_absensi'); pin = '';
-        tampil('gagal', 'PIN salah', 'Tekan "Ganti PIN", lalu scan ulang.'); bunyi('gagal');
+        kodeTerakhir = '';
+        tampil('gagal', 'PIN salah', 'Perbaiki PIN di kolom atas, lalu scan ulang.'); bunyi('gagal');
       } else {
         tampil('gagal', 'Terjadi kesalahan', d.pesan || ''); bunyi('gagal');
       }
@@ -139,7 +154,14 @@
   }
 
   btnMulai.addEventListener('click', async () => {
-    if (!pin) mintaPin();
+    if (!pin) {
+      tampil('gagal', 'PIN belum diisi', 'Ketik PIN di kolom atas, lalu tekan Mulai scan lagi.');
+      inputPin.focus(); return;
+    }
+    if (typeof Html5Qrcode === 'undefined') {
+      tampil('gagal', 'Pustaka scanner gagal dimuat', 'Cek internet, matikan pemblokir iklan, lalu muat ulang halaman.'); return;
+    }
+    if (!scanner) scanner = new Html5Qrcode('reader');
     try {
       await scanner.start({ facingMode: 'environment' },
         { fps: 10, qrbox: { width: 240, height: 240 } }, onScan, () => {});
@@ -150,7 +172,6 @@
     }
   });
 
-  document.getElementById('btnPin').addEventListener('click', mintaPin);
 </script>
 </body>
 </html>
